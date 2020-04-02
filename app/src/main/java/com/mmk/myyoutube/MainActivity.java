@@ -3,6 +3,8 @@ package com.mmk.myyoutube;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SearchView;
+import androidx.lifecycle.Observer;
+import androidx.lifecycle.ViewModelProviders;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -20,12 +22,14 @@ import com.mmk.myyoutube.adapter.VideosAdapter;
 import com.mmk.myyoutube.callbacks.ILoadMore;
 import com.mmk.myyoutube.callbacks.ItemClickListener;
 import com.mmk.myyoutube.model.Video;
+import com.mmk.myyoutube.model.VideosResponse;
 import com.mmk.myyoutube.network.YoutubeApi;
 import com.mmk.myyoutube.network.responses.SearchItemResponse;
 import com.mmk.myyoutube.network.responses.SearchResponse;
 import com.mmk.myyoutube.network.responses.VideoDetailResponse;
 import com.mmk.myyoutube.utils.Common;
 import com.mmk.myyoutube.utils.InfiniteScrollListener;
+import com.mmk.myyoutube.viewmodels.VideosViewModel;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private VideosAdapter videosAdapter;
     private String nextPageToken = "";
     private String currentSearch = "";
+    private VideosViewModel videosViewModel;
 
 
     @Override
@@ -64,7 +69,7 @@ public class MainActivity extends AppCompatActivity {
         recyclerViewVideos.setLayoutManager(layoutManager);
         videosAdapter = new VideosAdapter(this);
         recyclerViewVideos.setAdapter(videosAdapter);
-
+        videosViewModel = ViewModelProviders.of(this).get(VideosViewModel.class);
         loadVideos(currentSearch);
         infiniteScrollListener = new InfiniteScrollListener(layoutManager, () -> loadVideos(currentSearch));
 
@@ -99,89 +104,26 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadVideos(String search) {
         videosAdapter.setLoading(true);
-        YoutubeApi.getService()
-                .search(search, nextPageToken, Common.API_KEY)
-                .enqueue(new Callback<SearchResponse>() {
-                    @Override
-                    public void onResponse(Call<SearchResponse> call, Response<SearchResponse> response) {
+        videosViewModel.loadVideos(search, nextPageToken).observe(this, new Observer<VideosResponse>() {
+            @Override
+            public void onChanged(VideosResponse videosResponse) {
 
-                        Log.d("Reasonnnn", response.message());
-                        if (response.isSuccessful()) {
-                            SearchResponse searchResponse = response.body();
-                            List<SearchItemResponse> itemResponses = searchResponse.getItems();
-                            getVideoDetails(itemResponses);
-                            nextPageToken = searchResponse.getNextPageToken();
+                if (videosResponse.getResponseCode() == 200) {
 
-                        } else {
-                            if (response.code() == 403)
-                                Toast.makeText(MainActivity.this, getResources().getString(R.string.toast_api_limit),
-                                        Toast.LENGTH_SHORT).show();
-                            else
-                                Toast.makeText(MainActivity.this, getResources().getString(R.string.toast_server_error),
-                                        Toast.LENGTH_SHORT).show();
-                            reset();
-
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Call<SearchResponse> call, Throwable t) {
+                    videosAdapter.setVideoList(videosResponse.getVideoList());
+                    nextPageToken = videosResponse.getNextPageToken();
+                } else {
+                    if (videosResponse.getResponseCode() == 403)
+                        Toast.makeText(MainActivity.this, getResources().getString(R.string.toast_api_limit),
+                                Toast.LENGTH_SHORT).show();
+                    else
                         Toast.makeText(MainActivity.this, getResources().getString(R.string.toast_server_error),
                                 Toast.LENGTH_SHORT).show();
-                        reset();
-                    }
-                });
+                    reset();
+                }
 
-
-    }
-
-    private void getVideoDetails(List<SearchItemResponse> itemResponses) {
-        List<String> idList = new ArrayList<>();
-        for (SearchItemResponse item : itemResponses)
-            idList.add(item.getId().getVideoId());
-
-        List<Video> videoList = new ArrayList<>();
-        YoutubeApi.getService().getVideoDetail(TextUtils.join(",", idList), Common.API_KEY)
-                .enqueue(new Callback<VideoDetailResponse>() {
-                    @Override
-                    public void onResponse(Call<VideoDetailResponse> call, Response<VideoDetailResponse> response) {
-                        if (response.isSuccessful()) {
-                            VideoDetailResponse videoDetailResponse = response.body();
-                            for (VideoDetailResponse.Item item : videoDetailResponse.getItems()) {
-
-                                Video video = new Video(item.getId(),
-                                        item.getSnippet().getTitle(),
-                                        item.getSnippet().getChannelTitle(),
-                                        item.getSnippet().getPublishedAt(),
-                                        item.getStatistics().getViewCount(),
-                                        item.getSnippet().getThumbnails().getMedium().getUrl());
-                                videoList.add(video);
-
-                            }
-                            videosAdapter.setVideoList(videoList);
-
-
-                        } else {
-                            if (response.code() == 403)
-                                Toast.makeText(MainActivity.this, getResources().getString(R.string.toast_api_limit),
-                                        Toast.LENGTH_SHORT).show();
-                            else
-                                Toast.makeText(MainActivity.this, getResources().getString(R.string.toast_server_error),
-                                        Toast.LENGTH_SHORT).show();
-                            reset();
-
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Call<VideoDetailResponse> call, Throwable t) {
-
-                        Toast.makeText(MainActivity.this, getResources().getString(R.string.toast_server_error),
-                                Toast.LENGTH_SHORT).show();
-                        reset();
-                    }
-                });
-
+            }
+        });
 
     }
 

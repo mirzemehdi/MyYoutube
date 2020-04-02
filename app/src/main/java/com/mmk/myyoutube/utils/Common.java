@@ -5,7 +5,7 @@ import java.util.NavigableMap;
 import java.util.TreeMap;
 
 public class Common {
-    public static final String API_KEY="AIzaSyCdZRyFCaJbZej37DgyRCMQbZaiQfbe4lM";
+    public static final String API_KEY="AIzaSyDLvHvUYVW74KnOIh3JYNToaNTtlsjUkiY";
 
 
     private static final NavigableMap<Long, String> suffixes = new TreeMap<>();
